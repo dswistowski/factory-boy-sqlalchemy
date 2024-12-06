@@ -1,0 +1,47 @@
+[project]
+name = "factory-boy-sqlalchemy"
+version = "0.0.1"
+description = "More convinient use of factory boy with sqlalchemy models"
+readme = "README.md"
+authors = [
+    { name = "Damian Świstowski", email = "damian@swistowski.org" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "factory-boy>=3.0.0,<4.0.0",
+    "sqlalchemy>=2.0.0,<3.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fbsa"]
+
+[dependency-groups]
+dev = [
+    "cryptography>=44.0.0",
+    "mypy>=1.13.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest>=8.3.4",
+    "sqlalchemy[asyncio,postgresql-psycopg,aiosqlite,aiomysql]>=2.0.36",
+    "testcontainers>=4.8.2",
+    "types-factory-boy>=0.4.1",
+]
+pytest = [
+    "pytest>=8.3.4",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "UP",
+    "B",
+    "SIM",
+    "I",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
