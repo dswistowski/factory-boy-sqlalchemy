@@ -9,6 +9,10 @@ lint:  ## lint code
 	@uv run ruff format . --check
 	@uv run ruff check .
 
+typecheck: ## typecheck code
+	@uv run mypy .
+
+check-all: lint typecheck  ## run all checkers
 
 format:  ## use ruff to fix all linting problems
 	@uv run ruff format .

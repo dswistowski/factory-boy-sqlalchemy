@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import AsyncIterable
 from typing import Annotated, ClassVar
 from uuid import UUID
 
@@ -29,17 +30,17 @@ class User(Base):
 
 
 class UserFactory(fb.Factory):
-    first_name = fb.Faker("first_name")
-    last_name = fb.Faker("last_name")
-    email = fb.Faker("email")
-    address = fb.Faker("address")
+    first_name = fb.Faker[str, str]("first_name")
+    last_name = fb.Faker[str, str]("last_name")
+    email = fb.Faker[str, str]("email")
+    address = fb.Faker[str, str]("address")
 
     class Meta:
         model = User
 
 
 @pytest.fixture
-async def async_session(async_db_engine: AsyncEngine) -> AsyncSession:
+async def async_session(async_db_engine: AsyncEngine) -> AsyncIterable[AsyncSession]:
     session_maker = async_sessionmaker(async_db_engine, expire_on_commit=False)
     async with async_db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -65,5 +66,6 @@ async def test_can_create_user(
     assert user.id
 
     db_user = await async_session.get(User, user.id)
+    assert db_user
     assert user.email == db_user.email
     assert db_user.first_name == "Joe"

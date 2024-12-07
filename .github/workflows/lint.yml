@@ -11,6 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +35,7 @@ jobs:
 
       - name: Run formatter
         run: uv run ruff format --check
-        
+
       - name: Run mypy
         run: uv run mypy .
 

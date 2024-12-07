@@ -50,7 +50,7 @@ def db_dsn(request, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def async_db_engine(db_dsn: str):
+async def async_db_engine(db_dsn: str):
     engine = create_async_engine(
         db_dsn,
         echo=False,
@@ -59,4 +59,4 @@ def async_db_engine(db_dsn: str):
     try:
         yield engine
     finally:
-        engine.dispose()
+        await engine.dispose()

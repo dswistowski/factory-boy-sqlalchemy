@@ -113,7 +113,9 @@ class AsyncSQlAlchemyFactoryMetaClass(fb.base.FactoryMetaClass):
                         defaults = (
                             value._defaults if hasattr(value, "_defaults") else {}
                         )
-                        attrs[attr] = fb.SubFactory(sub_factory, **defaults)
+                        attrs[attr] = fb.SubFactory(
+                            t.cast(type[fb.Factory], sub_factory), **defaults
+                        )
         return super().__new__(cls, class_name, bases, attrs)
 
 
