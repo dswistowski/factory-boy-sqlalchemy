@@ -1,16 +1,23 @@
 import os
+from collections.abc import AsyncIterable, Iterable
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from sqlalchemy import NullPool
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from testcontainers.mysql import MySqlContainer
 from testcontainers.postgres import PostgresContainer
+
+if TYPE_CHECKING:
+    from _pytest.tmpdir import TempPathFactory
+
+    type Request = Any
 
 pytest_plugins = "fbsa.pytest"
 
 
 @pytest.fixture(scope="session", params=["postgresql", "sqlite", "mysql"])
-def db_dsn(request, tmp_path_factory):
+def db_dsn(request: "Request", tmp_path_factory: "TempPathFactory") -> Iterable[str]:
     """
     If DB_DSN env variable is set, use is, if not use test container to spawn a database
     """
@@ -50,7 +57,7 @@ def db_dsn(request, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-async def async_db_engine(db_dsn: str):
+async def async_db_engine(db_dsn: str) -> AsyncIterable[AsyncEngine]:
     engine = create_async_engine(
         db_dsn,
         echo=False,

@@ -5,7 +5,7 @@ readme = "README.md"
 authors = [
     { name = "Damian Świstowski", email = "damian@swistowski.org" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "factory-boy>=3.0.0,<4.0.0",
     "sqlalchemy>=2.0.0,<3.0.0",
@@ -35,7 +35,6 @@ dev = [
     "ruff>=0.8.2",
     "sqlalchemy[asyncio,postgresql-psycopg,aiosqlite,aiomysql]>=2.0.36",
     "testcontainers>=4.8.2",
-    "types-factory-boy>=0.4.1",
 ]
 pytest = [
     "pytest>=8.3.4",
@@ -55,11 +54,18 @@ select = [
 asyncio_mode = "auto"
 
 [tool.mypy]
+mypy_path="src"
 explicit_package_bases=true
+disallow_untyped_defs=true
+disallow_untyped_decorators=true
+disallow_incomplete_defs=true
+disallow_any_generics=true
 
 [[tool.mypy.overrides]]
 module = [
     "testcontainers.mysql",
-    "testcontainers.postgres"
+    "testcontainers.postgres",
+    "factory"
 ]
 ignore_missing_imports = true
+

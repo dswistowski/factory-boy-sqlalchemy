@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import Text
 
-from src.fbsa import AsyncFactory
+from fbsa import AsyncFactory, AsyncFactoryMaker
 
 Str255 = Annotated[str, 255]
 
@@ -30,10 +30,10 @@ class User(Base):
 
 
 class UserFactory(fb.Factory):
-    first_name = fb.Faker[str, str]("first_name")
-    last_name = fb.Faker[str, str]("last_name")
-    email = fb.Faker[str, str]("email")
-    address = fb.Faker[str, str]("address")
+    first_name = fb.Faker("first_name")
+    last_name = fb.Faker("last_name")
+    email = fb.Faker("email")
+    address: str = fb.Faker("address")
 
     class Meta:
         model = User
@@ -53,7 +53,9 @@ async def async_session(async_db_engine: AsyncEngine) -> AsyncIterable[AsyncSess
 
 
 @pytest.fixture
-def async_user_factory(sqlalchemy_async_factory) -> AsyncFactory[User]:
+def async_user_factory(
+    sqlalchemy_async_factory: AsyncFactoryMaker[User],
+) -> AsyncFactory[User]:
     return sqlalchemy_async_factory(UserFactory)
 
 

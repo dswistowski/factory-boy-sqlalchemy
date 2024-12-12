@@ -1,3 +1,3 @@
-__all__ = ["AsyncFactory"]
+__all__ = ["AsyncFactory", "AsyncFactoryMaker"]
 
-from .types import AsyncFactory
+from .types import AsyncFactory, AsyncFactoryMaker

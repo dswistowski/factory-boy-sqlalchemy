@@ -1,9 +1,11 @@
 import typing as t
 
-Entity = t.TypeVar("Entity")
+import factory as fb
+
+type AsyncFactoryMaker[T] = t.Callable[[type[fb.Factory]], AsyncFactory[T]]
 
 
-class AsyncFactory(t.Protocol[Entity]):
+class AsyncFactory[Entity](t.Protocol):
     def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Awaitable[Entity]: ...
 
     def create(self, *args: t.Any, **kwargs: t.Any) -> t.Awaitable[Entity]: ...
@@ -15,4 +17,4 @@ class AsyncFactory(t.Protocol[Entity]):
     ) -> list[t.Awaitable[Entity]]: ...
 
 
-Factory = t.Callable[..., Entity]
+type Factory[Entity] = t.Callable[..., Entity]
