@@ -139,18 +139,21 @@ def make_async_sqlalchemy_factory[T](
     if existing_factory := cache.get(base_factory):
         return existing_factory
 
-    class AsyncSqlAlchemyFactory[F](
-        AsyncSQLAlchemyModelFactory[F],
+    class AsyncSqlAlchemyFactory(
+        AsyncSQLAlchemyModelFactory[T],
         base_factory,  # type: ignore[valid-type, misc]
         metaclass=AsyncSQlAlchemyFactoryMetaClass,
         name_override=f"{base_factory.__name__}AsyncSqlAlchemyFactory",
         make_async_sqlalchemy_factory=partial(
-            make_async_sqlalchemy_factory, session=session, cache=cache
+            make_async_sqlalchemy_factory,
+            session=session,
+            cache=cache,
+            semaphore=semaphore,
         ),
         semaphore=semaphore,
         session=session,
     ): ...
 
-    cache[base_factory] = t.cast(AsyncFactory[T], AsyncSqlAlchemyFactory[T])
+    cache[base_factory] = t.cast(AsyncFactory[T], AsyncSqlAlchemyFactory)
 
-    return t.cast(AsyncFactory[T], AsyncSqlAlchemyFactory[T])
+    return t.cast(AsyncFactory[T], AsyncSqlAlchemyFactory)

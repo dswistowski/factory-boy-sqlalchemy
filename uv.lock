@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.12"
 
 [[package]]
@@ -174,7 +175,6 @@ wheels = [
 
 [[package]]
 name = "factory-boy-sqlalchemy"
-version = "0.0.0+unknown"
 source = { editable = "." }
 dependencies = [
     { name = "factory-boy" },
