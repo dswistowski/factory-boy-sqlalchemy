@@ -1,0 +1,33 @@
+name: Python Package
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  publish:
+    environment: pypi
+
+    permissions:
+      id-token: write
+
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Run build
+        run: uv build
+
+      - name: Minimize uv cache
+        run: uv cache prune --ci
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
