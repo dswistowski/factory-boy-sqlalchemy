@@ -1,6 +1,8 @@
+import asyncio
 import uuid
+import warnings
 from collections.abc import AsyncIterable
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, cast
 from uuid import UUID
 
 import factory as fb
@@ -71,6 +73,63 @@ class OrganizationFactory(fb.Factory):
         model = Organization
 
 
+def uppercase_first_name(
+    user: User, create: bool, extracted: object, **kwargs: object
+) -> None:
+    user.first_name = user.first_name.upper()
+
+
+class PostGenerationUserFactory(UserFactory):
+    uppercase_name = fb.PostGeneration(uppercase_first_name)
+
+
+def reject_user(user: User, create: bool, extracted: object, **kwargs: object) -> None:
+    raise ValueError("post-generation rejected user")
+
+
+class RejectedUserFactory(UserFactory):
+    rejection = fb.PostGeneration(reject_user)
+
+
+class PositionalModel(Base):
+    __tablename__ = "positional_model"
+
+    id: Mapped[Annotated[UUID, mapped_column(primary_key=True, default=uuid.uuid4)]]
+    value: Mapped[Str255]
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        if "value" in kwargs:
+            raise TypeError("value must be passed positionally")
+        if len(args) != 1:
+            raise TypeError("expected exactly one positional argument")
+        super().__init__(value=cast(str, args[0]), **kwargs)
+
+
+class PositionalModelFactory(fb.Factory):
+    value = "positional"
+
+    class Meta:
+        model = PositionalModel
+        inline_args = ("value",)
+
+
+class Node(Base):
+    __tablename__ = "node"
+
+    id: Mapped[Annotated[UUID, mapped_column(primary_key=True, default=uuid.uuid4)]]
+    parent_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("node.id"), nullable=True
+    )
+    parent: Mapped["Node | None"] = relationship(remote_side=lambda: Node.id)
+
+
+class NodeFactory(fb.Factory):
+    parent = fb.SubFactory(f"{__name__}.NodeFactory")
+
+    class Meta:
+        model = Node
+
+
 @pytest.fixture
 def async_organization_factory(
     sqlalchemy_async_factory: AsyncFactoryMaker[Organization],
@@ -117,3 +176,76 @@ async def test_can_create_organization(
     db_organization = await async_session.get(Organization, organization.id)
     assert db_organization
     assert db_organization.owner.first_name == "Joe"
+
+
+@pytest.mark.asyncio
+async def test_post_generation_receives_model_and_is_persisted(
+    sqlalchemy_async_factory: AsyncFactoryMaker[User],
+    async_session: AsyncSession,
+) -> None:
+    factory = sqlalchemy_async_factory(PostGenerationUserFactory)
+
+    user = await factory(first_name="Joe")
+
+    assert user.first_name == "JOE"
+    db_user = await async_session.get(User, user.id)
+    assert db_user
+    assert db_user.first_name == "JOE"
+
+
+@pytest.mark.asyncio
+async def test_failed_post_generation_does_not_persist(
+    sqlalchemy_async_factory: AsyncFactoryMaker[User],
+    async_session: AsyncSession,
+) -> None:
+    factory = sqlalchemy_async_factory(RejectedUserFactory)
+
+    with pytest.raises(ValueError, match="post-generation rejected user"):
+        factory()
+    await asyncio.sleep(0)
+
+    user_count = await async_session.scalar(
+        sa.select(sa.func.count()).select_from(User)
+    )
+    assert user_count == 0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_batch_does_not_mutate_session_during_flush(
+    async_user_factory: AsyncFactory[User],
+) -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        users = await asyncio.gather(*async_user_factory.create_batch(20))
+
+    session_warnings = [
+        warning
+        for warning in caught
+        if issubclass(warning.category, sa.exc.SAWarning)
+        and "Session.add()" in str(warning.message)
+    ]
+    assert not session_warnings
+    assert len(users) == 20
+
+
+@pytest.mark.asyncio
+async def test_preserves_inline_args(
+    sqlalchemy_async_factory: AsyncFactoryMaker[PositionalModel],
+) -> None:
+    factory = sqlalchemy_async_factory(PositionalModelFactory)
+
+    entity = await factory()
+
+    assert entity.value == "positional"
+
+
+@pytest.mark.asyncio
+async def test_can_bind_recursive_subfactory(
+    sqlalchemy_async_factory: AsyncFactoryMaker[Node],
+) -> None:
+    factory = sqlalchemy_async_factory(NodeFactory)
+
+    node = await factory(parent=None)
+
+    assert node.id
+    assert node.parent is None

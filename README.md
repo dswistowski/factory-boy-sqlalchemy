@@ -95,7 +95,11 @@ Enable it with `pytest_plugins = "fbsa.pytest"` (or `-p fbsa.pytest`). This is r
 
 ## SubFactory support
 
-If your vanilla factory has `SubFactory` fields, any sub‑factory whose model is a subclass of `sqlalchemy.orm.DeclarativeBase` is automatically converted into an async SQLAlchemy‑bound factory. Overrides work through double‑underscore syntax as usual.
+Vanilla `SubFactory` fields are evaluated synchronously while factory_boy builds the
+object graph. The completed root graph is then added to the async session and
+flushed, so related SQLAlchemy models are persisted through the relationship's
+normal `save-update` cascade. Overrides work through double-underscore syntax as
+usual.
 
 Example:
 
@@ -138,14 +142,20 @@ users = await asyncio.gather(*async_user_factory.create_batch(5))
 assert len(users) == 5
 ```
 
-By default, the plugin’s `semaphore` fixture limits `session.flush()` concurrency to 1 to avoid DB‑specific issues. You can override this per‑test:
+The plugin's `semaphore` fixture serializes each `session.add()` and `flush()` pair.
+This is required because SQLAlchemy's `AsyncSession` is not safe for concurrent
+mutation. Batch tasks may be awaited together, but their database writes run one at
+a time through the shared session.
+
+You can override the fixture to coordinate with an application-owned lock, but its
+limit should remain 1 while the factories share one `AsyncSession`:
 
 ```python
 import asyncio
 
 @pytest.fixture
 def semaphore() -> asyncio.Semaphore:
-    return asyncio.Semaphore(10)  # allow more concurrent flushes
+    return asyncio.Semaphore(1)
 ```
 
 ## Using without pytest
