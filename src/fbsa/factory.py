@@ -1,13 +1,9 @@
 import asyncio
-import inspect
-import itertools
 import typing as t
 from asyncio import Task
-from functools import partial
 
 import factory as fb
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import DeclarativeBase
 
 from .types import AsyncFactory
 
@@ -23,46 +19,31 @@ class AsyncSQLAlchemyModelFactory[T](fb.Factory):
     """Factory for SQLAlchemy models."""
 
     _options_class = AsyncSQLAlchemyOptions
-    _original_params = None
 
     class Meta:
         abstract = True
 
     @classmethod
-    def _generate(cls, strategy: t.Any, params: dict[str, t.Any]) -> T:
-        cls._original_params = params
-        return super()._generate(strategy, params)
+    def create(cls, **kwargs: t.Any) -> Task[T]:
+        """Build the entity graph, then persist it asynchronously."""
+        entity = t.cast(T, super().create(**kwargs))
+        return asyncio.create_task(cls._save(entity))
 
     @classmethod
-    def _create(cls, model_class: type[T], *args: t.Any, **kwargs: t.Any) -> Task[T]:
-        """Create an instance of the model, and save it to the database."""
-        session = cls._meta.sqlalchemy_session  # type: ignore[attr-defined]
+    def _create(cls, model_class: type[T], *args: t.Any, **kwargs: t.Any) -> T:
+        """Create an instance before factory-boy runs post-generation hooks."""
+        return model_class(*args, **kwargs)
+
+    @classmethod
+    async def _save(cls, entity: T) -> T:
+        session: AsyncSession | None = cls._meta.sqlalchemy_session  # type: ignore[attr-defined]
 
         if session is None:
             raise RuntimeError("No session provided.")
 
-        async def maker_coroutine() -> T:
-            for key, value in kwargs.items():
-                if inspect.isawaitable(value):
-                    kwargs[key] = await value
-
-            return await cls._save(model_class, session, args, kwargs)
-
-        return asyncio.create_task(maker_coroutine())
-
-    @classmethod
-    async def _save(
-        cls,
-        model_class: type[T],
-        session: AsyncSession,
-        args: t.Sequence[t.Any],
-        kwargs: t.Mapping[str, t.Any],
-    ) -> T:
-        entity = model_class(*args, **kwargs)
-
-        session.add(entity)
         async with cls._meta.samaphore:  # type: ignore[attr-defined]
-            await session.flush([entity])
+            session.add(entity)
+            await session.flush()
         return entity
 
 
@@ -78,7 +59,6 @@ class AsyncSQlAlchemyFactoryMetaClass[T](fb.base.FactoryMetaClass):
         bases: tuple[type, ...],
         attrs: dict[str, t.Any],
         name_override: str,
-        make_async_sqlalchemy_factory: t.Callable[[type[fb.Factory]], AsyncFactory[T]],
         session: AsyncSession,
         semaphore: asyncio.Semaphore,
     ) -> type[t.Self]:
@@ -88,7 +68,7 @@ class AsyncSQlAlchemyFactoryMetaClass[T](fb.base.FactoryMetaClass):
         base_meta = fb.base.resolve_attribute("_meta", reversed(bases))
 
         # copy the base meta, but replace the sqlalchemy session
-        meta_fields_to_copy = ("model", "exclude", "rename")
+        meta_fields_to_copy = ("model", "inline_args", "exclude", "rename")
 
         meta = type(
             "Meta",
@@ -104,25 +84,6 @@ class AsyncSQlAlchemyFactoryMetaClass[T](fb.base.FactoryMetaClass):
             },
         )
         attrs["Meta"] = meta
-        all_parent_factories = itertools.chain.from_iterable(
-            reversed(fb.base.get_factory_bases(base.__mro__))
-            for base in reversed(fb.base.get_factory_bases(bases))
-        )
-        for parent_factory in all_parent_factories:
-            for attr, value in vars(parent_factory).items():
-                if isinstance(value, fb.declarations.SubFactory):
-                    vanilla_factory = value.get_factory()
-                    assert hasattr(vanilla_factory._meta, "model")
-                    model = vanilla_factory._meta.model
-
-                    if issubclass(model, DeclarativeBase):
-                        sub_factory = make_async_sqlalchemy_factory(vanilla_factory)
-                        defaults = (
-                            value._defaults if hasattr(value, "_defaults") else {}
-                        )
-                        attrs[attr] = fb.SubFactory(
-                            t.cast(type[fb.Factory], sub_factory), **defaults
-                        )
         return super().__new__(cls, class_name, bases, attrs)
 
 
@@ -144,12 +105,6 @@ def make_async_sqlalchemy_factory[T](
         base_factory,  # type: ignore[valid-type, misc]
         metaclass=AsyncSQlAlchemyFactoryMetaClass,
         name_override=f"{base_factory.__name__}AsyncSqlAlchemyFactory",
-        make_async_sqlalchemy_factory=partial(
-            make_async_sqlalchemy_factory,
-            session=session,
-            cache=cache,
-            semaphore=semaphore,
-        ),
         semaphore=semaphore,
         session=session,
     ): ...
